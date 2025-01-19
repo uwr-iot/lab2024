@@ -1,4 +1,5 @@
 #include <esp_log.h>
+#include <esp_log_buffer.h>
 #include <nvs_flash.h>
 
 #include <esp_nimble_hci.h>
@@ -39,6 +40,87 @@
 
 // Variable to simulate heart beats
 static uint8_t heartrate = 90;
+
+// I2C configuration
+#define I2C_PORT_NUMBER                         I2C_NUM_0
+#define I2C_CLK_FREQUENCY                       10000
+#define I2C_SDA_PIN                             GPIO_NUM_4
+#define I2C_SCL_PIN                             GPIO_NUM_5
+#define I2C_TIMEOUT                             (100 / portTICK_PERIOD_MS)
+#define I2C_AHT20_ADDRESS                       0x38
+
+static void i2c_initialize(void) {
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_SDA_PIN,
+        .scl_io_num = I2C_SCL_PIN,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_CLK_FREQUENCY,
+    };
+
+    i2c_param_config(I2C_PORT_NUMBER, &conf);
+    i2c_driver_install(I2C_PORT_NUMBER, conf.mode, 0, 0, 0);
+}
+
+static bool i2c_write(uint8_t address, uint8_t *data, size_t length) {
+    ESP_LOG_BUFFER_HEX_LEVEL("I2C", data, length, ESP_LOG_DEBUG);
+
+    esp_err_t res = i2c_master_write_to_device(I2C_PORT_NUMBER, address, data, length, I2C_TIMEOUT);
+    if (res != ESP_OK) {
+        ESP_LOGE("I2C", "error on write, code: 0x%02X", res);
+    }
+
+    return res == ESP_OK;
+}
+
+static bool i2c_read(uint8_t address, uint8_t *buffer, size_t length) {
+    esp_err_t res = i2c_master_read_from_device(I2C_PORT_NUMBER, address, buffer, length, I2C_TIMEOUT);
+    if (res != ESP_OK) {
+        ESP_LOGI("I2C", "error on read, code: 0x%02X", res);
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("I2C", buffer, length, ESP_LOG_DEBUG);
+    }
+
+    return res == ESP_OK;
+}
+
+// AHT20 temperature & humidity sensor
+//
+// AHT20 ESP IoT Solution
+// driver: https://github.com/espressif/esp-iot-solution/tree/master/components/sensors/humiture/aht20
+//
+// AHT20 sensor
+// website: http://www.aosong.com/en/products-32.html
+// documentation: https://files.seeedstudio.com/wiki/Grove-AHT20_I2C_Industrial_Grade_Temperature_and_Humidity_Sensor/AHT20-datasheet-2020-4-16.pdf
+// I2C example: esp-idf-v4.4.2/examples/peripherals/i2c/i2c_simple/main/i2c_simple_main.c
+// 3rdParty library: https://github.com/adafruit/Adafruit_AHTX0
+
+static void aht20_initialize() {
+    uint8_t request[] = {0xBE};
+    i2c_write(I2C_AHT20_ADDRESS, request, sizeof(request));
+}
+
+static bool aht20_trigger_measurement() {
+    // TODO
+    return false;
+}
+
+static bool aht20_read_data(uint8_t *buffer, size_t length) {
+    // TODO
+    return false;
+}
+
+static float aht20_get_humidity(uint8_t *buffer) {
+    // TODO
+    return 0;
+}
+
+
+static float aht20_get_temperature(uint8_t *buffer) {
+    // TODO
+    return 0;
+}
 
 
 static void wait_ms(unsigned delay) {
@@ -191,6 +273,9 @@ void app_main(void) {
     // Start BLE device
     set_device_name("IoT LAB device");
     start_advertisement();
+
+    // Initialize I2C interface
+    i2c_initialize();
 
 error:
     while (1) {
